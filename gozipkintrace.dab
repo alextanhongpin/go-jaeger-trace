@@ -1,0 +1,37 @@
+{
+  "Services": {
+    "jaeger": {
+      "Image": "jaegertracing/all-in-one@sha256:024bda697724fd9d78295574a5433bffb807cb8fe2075d9b50a562167105fad2", 
+      "Networks": [
+        "default"
+      ], 
+      "Ports": [
+        {
+          "Port": 5775, 
+          "Protocol": "udp"
+        }, 
+        {
+          "Port": 6831, 
+          "Protocol": "udp"
+        }, 
+        {
+          "Port": 6832, 
+          "Protocol": "udp"
+        }, 
+        {
+          "Port": 5778, 
+          "Protocol": "tcp"
+        }, 
+        {
+          "Port": 16686, 
+          "Protocol": "tcp"
+        }, 
+        {
+          "Port": 14268, 
+          "Protocol": "tcp"
+        }
+      ]
+    }
+  }, 
+  "Version": "0.1"
+}

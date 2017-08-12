@@ -1,0 +1,12 @@
+package: github.com/alextanhongpin/go-zipkin-trace
+import:
+- package: github.com/opentracing/opentracing-go
+  subpackages:
+  - ext
+  - log
+- package: github.com/openzipkin/zipkin-go-opentracing
+  subpackages:
+  - thrift/gen-go/zipkincore
+- package: github.com/uber/jaeger-client-go
+  subpackages:
+  - config
