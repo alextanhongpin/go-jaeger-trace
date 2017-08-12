@@ -31,19 +31,19 @@ func main() {
 	)
 
 	defer closer.Close()
-	testTracer1(tracer) // working
-	testTracer()
+	tracer2(testTracer1(tracer)) // working
+	// testTracer()
 
 	http.ListenAndServe(":8080", nil)
 
 }
 
 // Working
-func testTracer1(t opentracing.Tracer) interface{} {
+func testTracer1(t opentracing.Tracer) (opentracing.Tracer, opentracing.Span) {
 
 	span := t.StartSpan("new_span")
 	defer span.Finish()
-	span.SetOperationName("s2")
+	span.SetOperationName("span_1")
 	span.LogFields(log.String("ds", "asd"))
 	span.LogEvent("hello")
 	span.SetTag(zipkincore.HTTP_PATH, struct{ name string }{"ad"})
@@ -51,26 +51,30 @@ func testTracer1(t opentracing.Tracer) interface{} {
 	span.SetBaggageItem("Some_Key", "12345")
 	span.SetBaggageItem("Some-other-key", "42")
 
+	return t, span
+}
+
+func tracer2(t opentracing.Tracer, span opentracing.Span) error {
 	span2 := t.StartSpan("span_2", opentracing.ChildOf(span.Context()))
 	defer span2.Finish()
 	span2.LogFields(log.String("hello", "span2"))
-
+	time.Sleep(1 * time.Millisecond)
 	return nil
 }
 
-func testTracer() interface{} {
-	tracer, closer := jaeger.NewTracer(
-		"crossdock",
-		jaeger.NewConstSampler(true),
-		jaeger.NewNullReporter(),
-	)
-	defer closer.Close()
+// func testTracer() interface{} {
+// 	tracer, closer := jaeger.NewTracer(
+// 		"crossdock",
+// 		jaeger.NewConstSampler(true),
+// 		jaeger.NewNullReporter(),
+// 	)
+// 	defer closer.Close()
 
-	span := tracer.StartSpan("hi")
-	span.LogEvent("hello")
-	span.SetBaggageItem("key", "xyz")
-	// ctx := opentracing.ContextWithSpan(context.Background(), span)
+// 	span := tracer.StartSpan("hi")
+// 	span.LogEvent("hello")
+// 	span.SetBaggageItem("key", "xyz")
+// 	// ctx := opentracing.ContextWithSpan(context.Background(), span)
 
-	defer span.Finish()
-	return nil
-}
+// 	defer span.Finish()
+// 	return nil
+// }
