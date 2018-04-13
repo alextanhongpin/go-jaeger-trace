@@ -8,5 +8,6 @@ import:
   subpackages:
   - thrift/gen-go/zipkincore
 - package: github.com/uber/jaeger-client-go
+  version: ^2.7.0
   subpackages:
   - config

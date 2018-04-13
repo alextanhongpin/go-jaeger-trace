@@ -5,10 +5,10 @@ package scribe
 
 import (
 	"bytes"
+	"context"
 	"reflect"
 	"database/sql/driver"
 	"errors"
-	"context"
 	"fmt"
 	"github.com/apache/thrift/lib/go/thrift"
 )
@@ -207,107 +207,41 @@ type Scribe interface {
 }
 
 type ScribeClient struct {
-  Transport thrift.TTransport
-  ProtocolFactory thrift.TProtocolFactory
-  InputProtocol thrift.TProtocol
-  OutputProtocol thrift.TProtocol
-  SeqId int32
+  c thrift.TClient
 }
 
 func NewScribeClientFactory(t thrift.TTransport, f thrift.TProtocolFactory) *ScribeClient {
-  return &ScribeClient{Transport: t,
-    ProtocolFactory: f,
-    InputProtocol: f.GetProtocol(t),
-    OutputProtocol: f.GetProtocol(t),
-    SeqId: 0,
+  return &ScribeClient{
+    c: thrift.NewTStandardClient(f.GetProtocol(t), f.GetProtocol(t)),
   }
 }
 
 func NewScribeClientProtocol(t thrift.TTransport, iprot thrift.TProtocol, oprot thrift.TProtocol) *ScribeClient {
-  return &ScribeClient{Transport: t,
-    ProtocolFactory: nil,
-    InputProtocol: iprot,
-    OutputProtocol: oprot,
-    SeqId: 0,
+  return &ScribeClient{
+    c: thrift.NewTStandardClient(iprot, oprot),
   }
 }
 
+func NewScribeClient(c thrift.TClient) *ScribeClient {
+  return &ScribeClient{
+    c: c,
+  }
+}
+
+func (p *ScribeClient) Client_() thrift.TClient {
+  return p.c
+}
 // Parameters:
 //  - Messages
 func (p *ScribeClient) Log(ctx context.Context, messages []*LogEntry) (r ResultCode, err error) {
-  if err = p.sendLog(messages); err != nil { return }
-  return p.recvLog()
+  var _args0 ScribeLogArgs
+  _args0.Messages = messages
+  var _result1 ScribeLogResult
+  if err = p.Client_().Call(ctx, "Log", &_args0, &_result1); err != nil {
+    return
+  }
+  return _result1.GetSuccess(), nil
 }
-
-func (p *ScribeClient) sendLog(messages []*LogEntry)(err error) {
-  oprot := p.OutputProtocol
-  if oprot == nil {
-    oprot = p.ProtocolFactory.GetProtocol(p.Transport)
-    p.OutputProtocol = oprot
-  }
-  p.SeqId++
-  if err = oprot.WriteMessageBegin("Log", thrift.CALL, p.SeqId); err != nil {
-      return
-  }
-  args := ScribeLogArgs{
-  Messages : messages,
-  }
-  if err = args.Write(oprot); err != nil {
-      return
-  }
-  if err = oprot.WriteMessageEnd(); err != nil {
-      return
-  }
-  return oprot.Flush()
-}
-
-
-func (p *ScribeClient) recvLog() (value ResultCode, err error) {
-  iprot := p.InputProtocol
-  if iprot == nil {
-    iprot = p.ProtocolFactory.GetProtocol(p.Transport)
-    p.InputProtocol = iprot
-  }
-  method, mTypeId, seqId, err := iprot.ReadMessageBegin()
-  if err != nil {
-    return
-  }
-  if method != "Log" {
-    err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "Log failed: wrong method name")
-    return
-  }
-  if p.SeqId != seqId {
-    err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "Log failed: out of sequence response")
-    return
-  }
-  if mTypeId == thrift.EXCEPTION {
-    error0 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-    var error1 error
-    error1, err = error0.Read(iprot)
-    if err != nil {
-      return
-    }
-    if err = iprot.ReadMessageEnd(); err != nil {
-      return
-    }
-    err = error1
-    return
-  }
-  if mTypeId != thrift.REPLY {
-    err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "Log failed: invalid message type")
-    return
-  }
-  result := ScribeLogResult{}
-  if err = result.Read(iprot); err != nil {
-    return
-  }
-  if err = iprot.ReadMessageEnd(); err != nil {
-    return
-  }
-  value = result.GetSuccess()
-  return
-}
-
 
 type ScribeProcessor struct {
   processorMap map[string]thrift.TProcessorFunction
@@ -346,7 +280,7 @@ func (p *ScribeProcessor) Process(ctx context.Context, iprot, oprot thrift.TProt
   oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
   x3.Write(oprot)
   oprot.WriteMessageEnd()
-  oprot.Flush()
+  oprot.Flush(ctx)
   return false, x3
 
 }
@@ -363,7 +297,7 @@ func (p *scribeProcessorLog) Process(ctx context.Context, seqId int32, iprot, op
     oprot.WriteMessageBegin("Log", thrift.EXCEPTION, seqId)
     x.Write(oprot)
     oprot.WriteMessageEnd()
-    oprot.Flush()
+    oprot.Flush(ctx)
     return false, err
   }
 
@@ -376,7 +310,7 @@ var retval ResultCode
     oprot.WriteMessageBegin("Log", thrift.EXCEPTION, seqId)
     x.Write(oprot)
     oprot.WriteMessageEnd()
-    oprot.Flush()
+    oprot.Flush(ctx)
     return true, err2
   } else {
     result.Success = &retval
@@ -390,7 +324,7 @@ var retval ResultCode
   if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
     err = err2
   }
-  if err2 = oprot.Flush(); err == nil && err2 != nil {
+  if err2 = oprot.Flush(ctx); err == nil && err2 != nil {
     err = err2
   }
   if err != nil {

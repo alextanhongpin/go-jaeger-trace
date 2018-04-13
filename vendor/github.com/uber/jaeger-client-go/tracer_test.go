@@ -1,22 +1,16 @@
-// Copyright (c) 2015 Uber Technologies, Inc.
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package jaeger
 
@@ -32,6 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/testutils"
 
+	"github.com/uber/jaeger-client-go/internal/baggage"
 	"github.com/uber/jaeger-client-go/log"
 	"github.com/uber/jaeger-client-go/utils"
 )
@@ -52,6 +47,7 @@ func (s *tracerSuite) SetupTest() {
 		NewNullReporter(),
 		TracerOptions.Metrics(metrics),
 		TracerOptions.ZipkinSharedRPCSpan(true),
+		TracerOptions.BaggageRestrictionManager(baggage.NewDefaultRestrictionManager(0)),
 	)
 	s.NotNil(s.tracer)
 }
@@ -94,9 +90,8 @@ func (s *tracerSuite) TestBeginRootSpan() {
 	s.NotNil(ss.duration)
 
 	testutils.AssertCounterMetrics(s.T(), s.metricsFactory, []testutils.ExpectedMetric{
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "started"}, Value: 1},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "finished"}, Value: 1},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "sampling", "sampled": "y"}, Value: 1},
+		{Name: "jaeger.finished_spans", Value: 1},
+		{Name: "jaeger.started_spans", Tags: map[string]string{"sampled": "y"}, Value: 1},
 		{Name: "jaeger.traces", Tags: map[string]string{"sampled": "y", "state": "started"}, Value: 1},
 	}...)
 }
@@ -118,10 +113,9 @@ func (s *tracerSuite) TestStartChildSpan() {
 	s.NotNil(sp2.(*Span).duration)
 	sp1.Finish()
 	testutils.AssertCounterMetrics(s.T(), s.metricsFactory, []testutils.ExpectedMetric{
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "sampling", "sampled": "y"}, Value: 2},
+		{Name: "jaeger.started_spans", Tags: map[string]string{"sampled": "y"}, Value: 2},
 		{Name: "jaeger.traces", Tags: map[string]string{"sampled": "y", "state": "started"}, Value: 1},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "started"}, Value: 2},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "finished"}, Value: 2},
+		{Name: "jaeger.finished_spans", Value: 2},
 	}...)
 }
 
@@ -150,10 +144,9 @@ func (s *tracerSuite) TestStartSpanWithMultipleReferences() {
 	sp2.Finish()
 	sp1.Finish()
 	testutils.AssertCounterMetrics(s.T(), s.metricsFactory, []testutils.ExpectedMetric{
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "sampling", "sampled": "y"}, Value: 4},
+		{Name: "jaeger.started_spans", Tags: map[string]string{"sampled": "y"}, Value: 4},
 		{Name: "jaeger.traces", Tags: map[string]string{"sampled": "y", "state": "started"}, Value: 3},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "started"}, Value: 4},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "finished"}, Value: 4},
+		{Name: "jaeger.finished_spans", Value: 4},
 	}...)
 	assert.Len(s.T(), sp4.(*Span).references, 3)
 }
@@ -171,10 +164,9 @@ func (s *tracerSuite) TestStartSpanWithOnlyFollowFromReference() {
 	s.NotNil(sp2.(*Span).duration)
 	sp1.Finish()
 	testutils.AssertCounterMetrics(s.T(), s.metricsFactory, []testutils.ExpectedMetric{
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "sampling", "sampled": "y"}, Value: 2},
+		{Name: "jaeger.started_spans", Tags: map[string]string{"sampled": "y"}, Value: 2},
 		{Name: "jaeger.traces", Tags: map[string]string{"sampled": "y", "state": "started"}, Value: 1},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "started"}, Value: 2},
-		{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "finished"}, Value: 2},
+		{Name: "jaeger.finished_spans", Value: 2},
 	}...)
 	assert.Len(s.T(), sp2.(*Span).references, 1)
 }
@@ -202,9 +194,8 @@ func (s *tracerSuite) TestTraceStartedOrJoinedMetrics() {
 		s.Equal(test.sampled, sp2.Context().(SpanContext).IsSampled())
 
 		testutils.AssertCounterMetrics(s.T(), s.metricsFactory, []testutils.ExpectedMetric{
-			{Name: "jaeger.spans", Tags: map[string]string{"group": "sampling", "sampled": test.label}, Value: 3},
-			{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "started"}, Value: 3},
-			{Name: "jaeger.spans", Tags: map[string]string{"group": "lifecycle", "state": "finished"}, Value: 3},
+			{Name: "jaeger.started_spans", Tags: map[string]string{"sampled": test.label}, Value: 3},
+			{Name: "jaeger.finished_spans", Value: 3},
 			{Name: "jaeger.traces", Tags: map[string]string{"sampled": test.label, "state": "started"}, Value: 1},
 			{Name: "jaeger.traces", Tags: map[string]string{"sampled": test.label, "state": "joined"}, Value: 1},
 		}...)
@@ -310,6 +301,17 @@ func TestEmptySpanContextAsParent(t *testing.T) {
 	assert.True(t, ctx.IsValid())
 }
 
+func TestGen128Bit(t *testing.T) {
+	tracer, tc := NewTracer("x", NewConstSampler(true), NewNullReporter(), TracerOptions.Gen128Bit(true))
+	defer tc.Close()
+
+	span := tracer.StartSpan("test", opentracing.ChildOf(emptyContext))
+	defer span.Finish()
+	traceID := span.Context().(SpanContext).TraceID()
+	assert.True(t, traceID.High != 0)
+	assert.True(t, traceID.Low != 0)
+}
+
 func TestZipkinSharedRPCSpan(t *testing.T) {
 	tracer, tc := NewTracer("x", NewConstSampler(true), NewNullReporter(), TracerOptions.ZipkinSharedRPCSpan(false))
 
@@ -330,6 +332,30 @@ func TestZipkinSharedRPCSpan(t *testing.T) {
 	sp2.Finish()
 	sp1.Finish()
 	tc.Close()
+}
+
+type testDebugThrottler struct {
+	process Process
+}
+
+func (t *testDebugThrottler) SetProcess(process Process) {
+	t.process = process
+}
+
+func (t *testDebugThrottler) Close() error {
+	return nil
+}
+
+func (t *testDebugThrottler) IsAllowed(operation string) bool {
+	return true
+}
+
+func TestDebugThrottler(t *testing.T) {
+	throttler := &testDebugThrottler{}
+	opentracingTracer, tc := NewTracer("x", NewConstSampler(true), NewNullReporter(), TracerOptions.DebugThrottler(throttler))
+	assert.NoError(t, tc.Close())
+	tracer := opentracingTracer.(*Tracer)
+	assert.Equal(t, tracer.process, throttler.process)
 }
 
 type dummyPropagator struct{}

@@ -4,38 +4,24 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alextanhongpin/go-jaeger-trace/tracer"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/openzipkin/zipkin-go-opentracing/thrift/gen-go/zipkincore"
-
-	"github.com/uber/jaeger-client-go"
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 )
+
+const jaegerServiceName = "some_service"
+const jaegerHostPort = "localhost:5775"
 
 func main() {
 
-	cfg := jaegerClientConfig.Configuration{
-		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:              "const",
-			Param:             1,
-			SamplingServerURL: "localhost:5775",
-		},
-		Reporter: &jaegerClientConfig.ReporterConfig{
-			LogSpans:            true,
-			BufferFlushInterval: 1 * time.Second,
-		},
-	}
-	tracer, closer, _ := cfg.New(
-		"some_service",
-		jaegerClientConfig.Logger(jaeger.StdLogger),
-	)
-
+	tracer, closer := tracer.New(jaegerServiceName, jaegerHostPort)
 	defer closer.Close()
 	tracer2(testTracer1(tracer)) // working
 	// testTracer()
 
+	// Required so that the tags are sent safely
 	http.ListenAndServe(":8080", nil)
-
 }
 
 // Working
@@ -61,20 +47,3 @@ func tracer2(t opentracing.Tracer, span opentracing.Span) error {
 	time.Sleep(1 * time.Millisecond)
 	return nil
 }
-
-// func testTracer() interface{} {
-// 	tracer, closer := jaeger.NewTracer(
-// 		"crossdock",
-// 		jaeger.NewConstSampler(true),
-// 		jaeger.NewNullReporter(),
-// 	)
-// 	defer closer.Close()
-
-// 	span := tracer.StartSpan("hi")
-// 	span.LogEvent("hello")
-// 	span.SetBaggageItem("key", "xyz")
-// 	// ctx := opentracing.ContextWithSpan(context.Background(), span)
-
-// 	defer span.Finish()
-// 	return nil
-// }
