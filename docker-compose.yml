@@ -9,4 +9,3 @@ services:
     - 127.0.0.1:5778:5778 # serve configs
     - 127.0.0.1:16686:16686 # serve frontend
     - 127.0.0.1:14268:14268 # accept jaeger.thrift directly from clients
-  

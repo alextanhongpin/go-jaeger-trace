@@ -51,3 +51,20 @@ The spans:
 ```bash
 $ docker-compose down
 ```
+
+## Traefik
+
+Traefik allows jaeger tracing too.
+
+```bash
+$ chmod +x traefik_darwin-amd64
+$ sudo ./traefik --configFile=config/traefik.toml
+```
+
+Calling the traefik with `go run client/main.go`:
+
+![trace](assets/traefik-trace.png)
+
+Calling the traefik with `go run plain-client/main.go`:
+
+![notrace](assets/traefik-notrace.png)

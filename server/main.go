@@ -9,10 +9,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-const port = ":8080"
+const port = ":8081"
 
 func index(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "http://localhost:8080/redirect", 301)
+	endpoint := fmt.Sprintf("http://localhost%s/redirect", port)
+	http.Redirect(w, r, endpoint, 301)
 }
 
 func redirect(w http.ResponseWriter, r *http.Request) {

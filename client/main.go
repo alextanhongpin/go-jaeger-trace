@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +18,10 @@ import (
 
 var t opentracing.Tracer
 var closer io.Closer
+
+// const port = ":8081"
+// Traefik endpoint
+const port = ":80"
 
 func main() {
 	t, closer = tracer.New("client", "localhost:5775")
@@ -65,7 +70,11 @@ func runClient(tracer opentracing.Tracer) {
 
 	ctx := opentracing.ContextWithSpan(context.Background(), span)
 
-	req, err := http.NewRequest("GET", "http://localhost:8080", nil)
+	endpoint := fmt.Sprintf("http://localhost%s/redirect", port)
+	log.Println("endpoint", endpoint)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	// The hostname for traefik service discovery
+	req.Host = "foo"
 	if err != nil {
 		log.Fatal(err)
 	}

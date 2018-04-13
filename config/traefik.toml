@@ -1,0 +1,26 @@
+# API definition
+[api]
+dashboard = true
+debug = true
+
+[tracing]
+  backend = "jaeger"
+  serviceName = "traefik"
+
+  [tracing.jaeger]
+    samplingServerURL = "http://localhost:5778/sampling"
+    samplingType = "const"
+    samplingParam = 1.0
+    localAgentHostPort = "localhost:5775"
+
+[file]
+  [backends]
+    [backends.backend1]
+      [backends.backend1.servers.server1]
+      url = "http://localhost:8081"
+
+  [frontends]
+    [frontends.frontend1]
+    backend = "backend1"
+      [frontends.frontend1.routes.test_1]
+      rule = "Host: foo"
